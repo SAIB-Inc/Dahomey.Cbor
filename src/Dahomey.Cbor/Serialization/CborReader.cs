@@ -791,10 +791,44 @@ namespace Dahomey.Cbor.Serialization
 
             if (size == -1)
             {
-                ThrowNotSupported();
+                return ReadIndefiniteByteString();
             }
 
             return ReadBytes(size, allowScratchBuffer);
+        }
+
+        private ReadOnlySpan<byte> ReadIndefiniteByteString()
+        {
+            byte[] result = Array.Empty<byte>();
+
+            while (true)
+            {
+                ExpectLength(1);
+                byte peek = GetBytes(1)[0];
+
+                if (peek == 0xFF)
+                {
+                    Advance(1);
+                    break;
+                }
+
+                Expect(CborMajorType.ByteString);
+                int chunkSize = ReadSize();
+
+                if (chunkSize == -1)
+                {
+                    ThrowCbor("Nested indefinite-length byte string is not allowed");
+                }
+
+                ReadOnlySpan<byte> chunk = ReadBytes(chunkSize, allowScratchBuffer: false);
+                byte[] newResult = new byte[result.Length + chunkSize];
+                result.CopyTo(newResult, 0);
+                chunk.CopyTo(newResult.AsSpan(result.Length));
+                result = newResult;
+            }
+
+            _state = CborReaderState.Start;
+            return result;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -826,7 +860,8 @@ namespace Dahomey.Cbor.Serialization
 
             if (size == -1)
             {
-                ThrowNotSupported();
+                ReadOnlySpan<byte> bytes = ReadIndefiniteByteString();
+                return new ReadOnlySequence<byte>(bytes.ToArray());
             }
 
             ExpectLength(size);
@@ -976,11 +1011,40 @@ namespace Dahomey.Cbor.Serialization
 
             if (size == -1)
             {
-                ThrowNotSupported();
+                SkipIndefiniteByteString();
+                return;
             }
 
             ExpectLength(size);
             Advance(size);
+        }
+
+        private void SkipIndefiniteByteString()
+        {
+            while (true)
+            {
+                ExpectLength(1);
+                byte peek = GetBytes(1)[0];
+
+                if (peek == 0xFF)
+                {
+                    Advance(1);
+                    break;
+                }
+
+                Expect(CborMajorType.ByteString);
+                int chunkSize = ReadSize();
+
+                if (chunkSize == -1)
+                {
+                    ThrowCbor("Nested indefinite-length byte string is not allowed");
+                }
+
+                ExpectLength(chunkSize);
+                Advance(chunkSize);
+            }
+
+            _state = CborReaderState.Start;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

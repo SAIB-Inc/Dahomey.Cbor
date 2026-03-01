@@ -1,3 +1,4 @@
+using Dahomey.Cbor;
 using Dahomey.Cbor.Serialization;
 using Xunit;
 using System;
@@ -272,8 +273,16 @@ namespace Dahomey.Cbor.Tests
 
         [Theory]
         [InlineData("40", "", null)]
-        [InlineData("41FF", "FF", typeof(NotSupportedException))]
+        [InlineData("41FF", "FF", null)]
         [InlineData("5000112233445566778899AABBCCDDEEFF", "00112233445566778899AABBCCDDEEFF", null)]
+        // indefinite-length: 5F (start) 44 AABBCCDD (chunk 4B) 43 EEFF99 (chunk 3B) FF (break) => AABBCCDDEEFF99
+        [InlineData("5F44AABBCCDD43EEFF99FF", "AABBCCDDEEFF99", null)]
+        // indefinite-length: single chunk
+        [InlineData("5F43ABCDEFFF", "ABCDEF", null)]
+        // indefinite-length: empty (no chunks)
+        [InlineData("5FFF", "", null)]
+        // indefinite-length: nested indefinite-length is not allowed
+        [InlineData("5F5FFFFF", "", typeof(CborException))]
         public void ReadByteString(string hexBuffer, string expectedHex, Type expectedExceptionType)
         {
             var expectedBytes = expectedHex.HexToBytes();

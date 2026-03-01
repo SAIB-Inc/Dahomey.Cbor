@@ -4,24 +4,22 @@
     <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <PackageReleaseNotes>cf. https://github.com/dahomey-technologies/Dahomey.Cbor/releases/tag/$(Version)</PackageReleaseNotes>
-    <Authors>Michaël Catanzariti</Authors>
-    <Company>Dahomey Technologies</Company>
-    <Description>High-performance CBOR serialization framework for .Net</Description>
+    <PackageId>SAIB.Cbor</PackageId>
+    <PackageReleaseNotes>cf. https://github.com/SAIB-Inc/Dahomey.Cbor/releases/tag/$(Version)</PackageReleaseNotes>
+    <Authors>Clark Alesna;Michaël Catanzariti</Authors>
+    <Company>SAIB Inc</Company>
+    <Description>High-performance CBOR serialization framework for .Net (fork of Dahomey.Cbor by Dahomey Technologies)</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/dahomey-technologies/Dahomey.Cbor</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/SAIB-Inc/Dahomey.Cbor</PackageProjectUrl>
     <PackageTags>cbor;serialization;json</PackageTags>
-    <RepositoryUrl>https://github.com/dahomey-technologies/Dahomey.Cbor.git</RepositoryUrl>
+    <RepositoryUrl>https://github.com/SAIB-Inc/Dahomey.Cbor.git</RepositoryUrl>
     <RepositoryType>Git</RepositoryType>
-    <PackageIconUrl>https://avatars3.githubusercontent.com/u/29336625?s=200&amp;v=4</PackageIconUrl>
-    <Copyright>Copyright © Dahomey Technologies 2020</Copyright>
+    <Copyright>Copyright © Dahomey Technologies 2020, SAIB Inc 2025</Copyright>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <SignAssembly>True</SignAssembly>
-    <AssemblyOriginatorKeyFile>../Dahomey.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">

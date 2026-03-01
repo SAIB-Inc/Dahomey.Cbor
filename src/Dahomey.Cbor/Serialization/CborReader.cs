@@ -791,10 +791,75 @@ namespace Dahomey.Cbor.Serialization
 
             if (size == -1)
             {
-                ThrowNotSupported();
+                return ReadIndefiniteByteString();
             }
 
             return ReadBytes(size, allowScratchBuffer);
+        }
+
+        private ReadOnlySpan<byte> ReadIndefiniteByteString()
+        {
+            byte[]? rented = null;
+            int totalLength = 0;
+
+            try
+            {
+                while (true)
+                {
+                    ExpectLength(1);
+                    byte peek = GetBytes(1)[0];
+
+                    if (peek == 0xFF)
+                    {
+                        Advance(1);
+                        break;
+                    }
+
+                    Expect(CborMajorType.ByteString);
+                    int chunkSize = ReadSize();
+
+                    if (chunkSize == -1)
+                    {
+                        ThrowCbor("Nested indefinite-length byte string is not allowed");
+                    }
+
+                    ReadOnlySpan<byte> chunk = ReadBytes(chunkSize, allowScratchBuffer: false);
+
+                    int requiredLength = totalLength + chunkSize;
+                    if (rented == null)
+                    {
+                        rented = ArrayPool<byte>.Shared.Rent(Math.Max(requiredLength, 256));
+                    }
+                    else if (requiredLength > rented.Length)
+                    {
+                        byte[] newRented = ArrayPool<byte>.Shared.Rent(requiredLength * 2);
+                        rented.AsSpan(0, totalLength).CopyTo(newRented);
+                        ArrayPool<byte>.Shared.Return(rented);
+                        rented = newRented;
+                    }
+
+                    chunk.CopyTo(rented.AsSpan(totalLength));
+                    totalLength += chunkSize;
+                }
+
+                _state = CborReaderState.Start;
+
+                if (totalLength == 0)
+                {
+                    return ReadOnlySpan<byte>.Empty;
+                }
+
+                byte[] result = new byte[totalLength];
+                rented.AsSpan(0, totalLength).CopyTo(result);
+                return result;
+            }
+            finally
+            {
+                if (rented != null)
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -826,7 +891,8 @@ namespace Dahomey.Cbor.Serialization
 
             if (size == -1)
             {
-                ThrowNotSupported();
+                ReadOnlySpan<byte> bytes = ReadIndefiniteByteString();
+                return new ReadOnlySequence<byte>(bytes.ToArray());
             }
 
             ExpectLength(size);
@@ -976,11 +1042,40 @@ namespace Dahomey.Cbor.Serialization
 
             if (size == -1)
             {
-                ThrowNotSupported();
+                SkipIndefiniteByteString();
+                return;
             }
 
             ExpectLength(size);
             Advance(size);
+        }
+
+        private void SkipIndefiniteByteString()
+        {
+            while (true)
+            {
+                ExpectLength(1);
+                byte peek = GetBytes(1)[0];
+
+                if (peek == 0xFF)
+                {
+                    Advance(1);
+                    break;
+                }
+
+                Expect(CborMajorType.ByteString);
+                int chunkSize = ReadSize();
+
+                if (chunkSize == -1)
+                {
+                    ThrowCbor("Nested indefinite-length byte string is not allowed");
+                }
+
+                ExpectLength(chunkSize);
+                Advance(chunkSize);
+            }
+
+            _state = CborReaderState.Start;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

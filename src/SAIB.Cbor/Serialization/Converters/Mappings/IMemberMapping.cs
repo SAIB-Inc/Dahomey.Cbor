@@ -1,0 +1,24 @@
+﻿using SAIB.Cbor.Attributes;
+using System;
+using System.Reflection;
+
+namespace SAIB.Cbor.Serialization.Converters.Mappings
+{
+    public interface IMemberMapping
+    {
+        MemberInfo? MemberInfo { get; }
+        Type MemberType { get; }
+        string? MemberName { get; }
+        int? MemberIndex { get; }
+        ICborConverter? Converter { get; }
+        bool CanBeDeserialized { get; }
+        bool CanBeSerialized { get; }
+        object? DefaultValue { get; }
+        bool IgnoreIfDefault { get; }
+        Func<object, bool>? ShouldSerializeMethod { get; }
+        LengthMode LengthMode { get; }
+        RequirementPolicy RequirementPolicy { get; }
+        IMemberConverter GenerateMemberConverter();
+        string? GetMemberNameForConverter(ICborConverter converter);
+    }
+}

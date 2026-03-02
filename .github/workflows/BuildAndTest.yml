@@ -35,7 +35,7 @@ jobs:
             10.0.x
 
       - name: build
-        run: dotnet build -c Release src/Dahomey.Cbor
+        run: dotnet build -c Release src/SAIB.Cbor
 
       - name: test
-        run: dotnet test -c Release src/Dahomey.Cbor.Tests
+        run: dotnet test -c Release src/SAIB.Cbor.Tests

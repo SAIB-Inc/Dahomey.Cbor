@@ -1,0 +1,220 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using SAIB.Cbor.Attributes;
+using SAIB.Cbor.Serialization;
+using SAIB.Cbor.Serialization.Conventions;
+using Xunit;
+
+namespace SAIB.Cbor.Tests
+{
+    public class DiscriminatorTests
+    {
+        static DiscriminatorTests()
+        {
+            SampleClasses.Initialize();
+        }
+
+        [Fact]
+        public void ReadPolymorphicObject()
+        {
+            CborOptions options = new CborOptions();
+            options.Registry.DiscriminatorConventionRegistry.RegisterType(typeof(NameObject));
+
+            const string hexBuffer = "A36B49426173654F626A656374A3625F746A4E616D654F626A656374644E616D6563626172624964026A426173654F626A656374A3625F746A4E616D654F626A656374644E616D6563666F6F624964016A4E616D654F626A656374F6";
+            BaseObjectHolder obj = Helper.Read<BaseObjectHolder>(hexBuffer, options);
+
+            Assert.NotNull(obj);
+            Assert.IsType<NameObject>(obj.BaseObject);
+            Assert.Equal("foo", ((NameObject)obj.BaseObject).Name);
+            Assert.Equal(1, obj.BaseObject.Id);
+            Assert.Equal("bar", ((NameObject)obj.IBaseObject).Name);
+            Assert.Equal(2, obj.IBaseObject.Id);
+        }
+
+        [Fact]
+        public void ReadInterfacePolymorphicObject()
+        {
+            CborOptions options = new CborOptions();
+            options.Registry.DiscriminatorConventionRegistry.RegisterType(typeof(NameObject));
+
+            const string hexBuffer = "A3625F746A4E616D654F626A656374644E616D6563666F6F62496401";
+            IBaseInterface obj = Helper.Read<IBaseInterface>(hexBuffer, options);
+
+            Assert.NotNull(obj);
+            Assert.IsType<NameObject>(obj);
+            Assert.Equal("foo", ((NameObject)obj).Name);
+            Assert.Equal(1, obj.Id);
+        }
+
+        [CborDiscriminator("OtherObject")]
+        public class OtherObject
+        {
+        }
+
+        [Fact]
+        public void ReadNonAssignablePolymorphicObject()
+        {
+            const string hexBuffer = "A16A426173654F626A656374A1625F746B4F746865724F626A656374"; // {"BaseObject": {"_t": "OtherObject"}}
+
+            CborOptions options = new CborOptions();
+            DiscriminatorConventionRegistry registry = options.Registry.DiscriminatorConventionRegistry;
+            registry.RegisterType<NameObject>();
+            registry.RegisterType<OtherObject>();
+
+            Assert.ThrowsAny<CborException>(() => Helper.Read<BaseObjectHolder>(hexBuffer, options));
+        }
+
+        [Fact]
+        public void WriteInterfacePolymorphicObject()
+        {
+            CborOptions options = new CborOptions();
+            // options.Registry.DiscriminatorConventionRegistry.RegisterType(typeof(NameObject));
+            IBaseInterface obj = new NameObject { Id = 1, Name = "foo" };
+
+            const string hexBuffer = "A3625F746A4E616D654F626A656374644E616D6563666F6F62496401";
+
+            Helper.TestWrite(obj, hexBuffer, null, options);
+        }
+
+        [Theory]
+        [InlineData(CborDiscriminatorPolicy.Default, "A36B49426173654F626A656374A3625F74714465736372697074696F6E4F626A6563746B4465736372697074696F6E6362617A624964036A426173654F626A656374A3625F746A4E616D654F626A656374644E616D6563666F6F624964016A4E616D654F626A656374A2644E616D656362617262496402")]
+        [InlineData(CborDiscriminatorPolicy.Auto, "A36B49426173654F626A656374A3625F74714465736372697074696F6E4F626A6563746B4465736372697074696F6E6362617A624964036A426173654F626A656374A3625F746A4E616D654F626A656374644E616D6563666F6F624964016A4E616D654F626A656374A2644E616D656362617262496402")]
+        [InlineData(CborDiscriminatorPolicy.Never, "A36B49426173654F626A656374A3625F74714465736372697074696F6E4F626A6563746B4465736372697074696F6E6362617A624964036A426173654F626A656374A2644E616D6563666F6F624964016A4E616D654F626A656374A2644E616D656362617262496402")]
+        [InlineData(CborDiscriminatorPolicy.Always, "A36B49426173654F626A656374A3625F74714465736372697074696F6E4F626A6563746B4465736372697074696F6E6362617A624964036A426173654F626A656374A3625F746A4E616D654F626A656374644E616D6563666F6F624964016A4E616D654F626A656374A3625F746A4E616D654F626A656374644E616D656362617262496402")]
+        public void WritePolymorphicObject(CborDiscriminatorPolicy discriminatorPolicy, string hexBuffer)
+        {
+            CborOptions options = new CborOptions();
+            options.Registry.DiscriminatorConventionRegistry.RegisterType(typeof(NameObject));
+            options.Registry.ObjectMappingRegistry.Register<NameObject>(om =>
+            {
+                om.AutoMap();
+                om.SetDiscriminatorPolicy(discriminatorPolicy);
+            });
+            options.Registry.ObjectMappingRegistry.Register<BaseObject>(om =>
+            {
+                om.AutoMap();
+                om.SetDiscriminatorPolicy(discriminatorPolicy);
+            });
+
+            BaseObjectHolder obj = new BaseObjectHolder
+            {
+                BaseObject = new NameObject
+                {
+                    Id = 1,
+                    Name = "foo"
+                },
+                NameObject = new NameObject
+                {
+                    Id = 2,
+                    Name = "bar"
+                },
+                IBaseObject = new DescriptionObject
+                {
+                    Id = 3,
+                    Description = "baz"
+                }
+            };
+
+            Helper.TestWrite(obj, hexBuffer, null, options);
+        }
+
+        private class CustomDiscriminatorConvention : IDiscriminatorConvention
+        {
+            private readonly ReadOnlyMemory<byte> _memberName = Encoding.ASCII.GetBytes("type");
+            private readonly Dictionary<int, Type> _typesByDiscriminator = new Dictionary<int, Type>();
+            private readonly Dictionary<Type, int> _discriminatorsByType = new Dictionary<Type, int>();
+
+            public ReadOnlySpan<byte> MemberName => _memberName.Span;
+
+            public bool TryRegisterType(Type type)
+            {
+                int discriminator = 17;
+                foreach(char c in type.Name)
+                {
+                    discriminator = discriminator * 23 + (int)c;
+                }
+
+                _typesByDiscriminator.Add(discriminator, type);
+                _discriminatorsByType.Add(type, discriminator);
+
+                return true;
+            }
+
+            public Type ReadDiscriminator(ref CborReader reader)
+            {
+                int discriminator = reader.ReadInt32();
+                if (!_typesByDiscriminator.TryGetValue(discriminator, out Type type))
+                {
+                    throw reader.BuildException($"Unknown type discriminator: {discriminator}");
+                }
+                return type;
+            }
+
+            public void WriteDiscriminator(ref CborWriter writer, Type actualType)
+            {
+                if (!_discriminatorsByType.TryGetValue(actualType, out int discriminator))
+                {
+                    throw new CborException($"Unknown discriminator for type: {actualType}");
+                }
+
+                writer.WriteInt32(discriminator);
+            }
+        }
+
+        [Fact]
+        public void ReadWithCustomDiscriminator()
+        {
+            CborOptions options = new CborOptions();
+            options.Registry.DiscriminatorConventionRegistry.RegisterConvention(new CustomDiscriminatorConvention());
+            options.Registry.DiscriminatorConventionRegistry.RegisterType(typeof(NameObject));
+
+            const string hexBuffer = "A16A426173654F626A656374A364747970651A22134C83644E616D6563666F6F62496401";
+            BaseObjectHolder obj = Helper.Read<BaseObjectHolder>(hexBuffer, options);
+
+            Assert.NotNull(obj);
+            Assert.IsType<NameObject>(obj.BaseObject);
+            Assert.Equal("foo", ((NameObject)obj.BaseObject).Name);
+            Assert.Equal(1, obj.BaseObject.Id);
+        }
+
+        [Fact]
+        public void WriteWithCustomDiscriminator()
+        {
+            CborOptions options = new CborOptions();
+            options.Registry.DiscriminatorConventionRegistry.RegisterConvention(new CustomDiscriminatorConvention());
+            options.Registry.DiscriminatorConventionRegistry.RegisterType(typeof(NameObject));
+
+            const string hexBuffer = "A36B49426173654F626A656374F66A426173654F626A656374A364747970651A22134C83644E616D6563666F6F624964016A4E616D654F626A656374F6";
+
+            BaseObjectHolder obj = new BaseObjectHolder
+            {
+                BaseObject = new NameObject
+                {
+                    Id = 1,
+                    Name = "foo"
+                },
+            };
+
+            Helper.TestWrite(obj, hexBuffer, null, options);
+        }
+
+        [Fact]
+        public void WriteWithNoDiscriminatorConvention()
+        {
+            CborOptions options = new CborOptions();
+            DiscriminatorConventionRegistry registry = options.Registry.DiscriminatorConventionRegistry;
+            registry.ClearConventions();
+
+            NameObject obj = new NameObject
+            {
+                Id = 12,
+                Name = "foo"
+            };
+
+            const string hexBuffer = "A2644E616D6563666F6F6249640C";
+
+            Helper.TestWrite(obj, hexBuffer, null, options);
+        }
+    }
+}

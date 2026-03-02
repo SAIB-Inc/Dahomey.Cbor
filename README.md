@@ -1,8 +1,10 @@
-# Dahomey.Cbor
+# SAIB.Cbor
 High-performance [CBOR](https://cbor.io/) serialization framework for .Net (C#)
 
-[![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/Dahomey.Cbor)](https://www.nuget.org/packages/Dahomey.Cbor)
-[![](https://github.com/dahomey-technologies/Dahomey.Cbor/actions/workflows/BuildAndTest.yml/badge.svg)](https://github.com/dahomey-technologies/Dahomey.Cbor/actions/workflows/BuildAndTest.yml)
+Fork of [Dahomey.Cbor](https://github.com/dahomey-technologies/Dahomey.Cbor) by Dahomey Technologies.
+
+[![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/SAIB.Cbor)](https://www.nuget.org/packages/SAIB.Cbor)
+[![](https://github.com/SAIB-Inc/Dahomey.Cbor/actions/workflows/BuildAndTest.yml/badge.svg)](https://github.com/SAIB-Inc/Dahomey.Cbor/actions/workflows/BuildAndTest.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Supported .NET versions
@@ -30,18 +32,19 @@ High-performance [CBOR](https://cbor.io/) serialization framework for .Net (C#)
 * Support for collection interfaces: IList<>, ICollection<>, IEnumerable<>, IReadOnlyList<>, IReadOnlyCollection<>
 * Support for dynamics
 * Support for structs
+* Support for indefinite-length byte strings (RFC 8949)
 
 ## Installation
 ### NuGet
-https://www.nuget.org/packages/Dahomey.Cbor/
+https://www.nuget.org/packages/SAIB.Cbor/
 
-`Install-Package Dahomey.Cbor`
+`Install-Package SAIB.Cbor`
 
 ### Compilation from source
   1. `dotnet restore`
   2. `dotnet pack -c Release`
-  
-## How to use Dahomey.Cbor
+
+## How to use SAIB.Cbor
 ### Deserialization
 
 Any C# class be deserialized from a CBOR buffer Stream:
@@ -55,7 +58,7 @@ class CustomObject
 CustomObject customObject = await Cbor.DeserializeAsync<CustomObject>(stream);
 ```
 
-Another option consists in using Dahomey.Cbor object model to deserialize the buffer in a more generic ``CborObject`` object:
+Another option consists in using SAIB.Cbor object model to deserialize the buffer in a more generic ``CborObject`` object:
 
 ```csharp
 CborObject cborObject = await Cbor.DeserializeAsync<CborObject>(stream);
@@ -95,7 +98,7 @@ await Cbor.SerializeAsync(cborObject, stream);
 
 If you need to write a customer converter for a specific class, you can inherit a custom converter class for CborConverterBase<T>.
 An example can be found here:
-https://github.com/dahomey-technologies/Dahomey.Cbor/blob/master/src/Dahomey.Cbor.Tests/GuidConverter.cs
+https://github.com/SAIB-Inc/Dahomey.Cbor/blob/master/src/SAIB.Cbor.Tests/GuidConverter.cs
 
 Then you can register you custom converter in 3 ways.
 
@@ -125,4 +128,3 @@ The last two options are useful when you write a custom cbor converter for a cla
 
 CborConverters are use in the heart of the library for standard types and auto discovered custom classes by reflection.
 It means you will benefit of the same features and performance.
-

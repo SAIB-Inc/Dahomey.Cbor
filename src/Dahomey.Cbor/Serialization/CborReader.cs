@@ -369,6 +369,24 @@ namespace Dahomey.Cbor.Serialization
             return ReadSizeAndBytes(allowScratchBuffer: false);
         }
 
+        /// <summary>
+        /// Reads a byte string and returns the content as a byte array.
+        /// For indefinite-length byte strings, avoids the extra copy that
+        /// ReadByteString().ToArray() would incur.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public byte[] ReadByteStringToArray()
+        {
+            SkipSemanticTag();
+            Expect(CborMajorType.ByteString);
+            int size = ReadSize();
+            if (size == -1)
+            {
+                return ReadIndefiniteByteStringToArray();
+            }
+            return ReadBytes(size, allowScratchBuffer: false).ToArray();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlySequence<byte> ReadByteStringSequence()
         {
@@ -847,6 +865,71 @@ namespace Dahomey.Cbor.Serialization
                 if (totalLength == 0)
                 {
                     return ReadOnlySpan<byte>.Empty;
+                }
+
+                byte[] result = new byte[totalLength];
+                rented.AsSpan(0, totalLength).CopyTo(result);
+                return result;
+            }
+            finally
+            {
+                if (rented != null)
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
+            }
+        }
+
+        private byte[] ReadIndefiniteByteStringToArray()
+        {
+            byte[]? rented = null;
+            int totalLength = 0;
+
+            try
+            {
+                while (true)
+                {
+                    ExpectLength(1);
+                    byte peek = GetBytes(1)[0];
+
+                    if (peek == 0xFF)
+                    {
+                        Advance(1);
+                        break;
+                    }
+
+                    Expect(CborMajorType.ByteString);
+                    int chunkSize = ReadSize();
+
+                    if (chunkSize == -1)
+                    {
+                        ThrowCbor("Nested indefinite-length byte string is not allowed");
+                    }
+
+                    ReadOnlySpan<byte> chunk = ReadBytes(chunkSize, allowScratchBuffer: false);
+
+                    int requiredLength = totalLength + chunkSize;
+                    if (rented == null)
+                    {
+                        rented = ArrayPool<byte>.Shared.Rent(Math.Max(requiredLength, 256));
+                    }
+                    else if (requiredLength > rented.Length)
+                    {
+                        byte[] newRented = ArrayPool<byte>.Shared.Rent(requiredLength * 2);
+                        rented.AsSpan(0, totalLength).CopyTo(newRented);
+                        ArrayPool<byte>.Shared.Return(rented);
+                        rented = newRented;
+                    }
+
+                    chunk.CopyTo(rented.AsSpan(totalLength));
+                    totalLength += chunkSize;
+                }
+
+                _state = CborReaderState.Start;
+
+                if (totalLength == 0)
+                {
+                    return [];
                 }
 
                 byte[] result = new byte[totalLength];
